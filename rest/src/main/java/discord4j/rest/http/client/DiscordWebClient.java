@@ -24,16 +24,22 @@ import discord4j.rest.json.response.ErrorResponse;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import reactor.core.publisher.Mono;
+import reactor.netty.ByteBufMono;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.client.HttpClientResponse;
 import reactor.util.Logger;
 import reactor.util.Loggers;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * HTTP client tailored for Discord REST API requests.
@@ -45,6 +51,7 @@ public class DiscordWebClient {
     private final HttpClient httpClient;
     private final HttpHeaders defaultHeaders;
     private final ExchangeStrategies exchangeStrategies;
+    private final List<StatusHandler> statusHandlers = new ArrayList<>();
 
     public DiscordWebClient(HttpClient httpClient, HttpHeaders defaultHeaders, ExchangeStrategies exchangeStrategies) {
         this.httpClient = httpClient;
@@ -97,6 +104,13 @@ public class DiscordWebClient {
                 .orElseGet(() -> Mono.error(noWriterException(body, contentType)))
                 .flatMap(receiver -> receiver.responseSingle((response, content) -> {
                     responseConsumer.accept(response);
+
+                    for (StatusHandler handler : statusHandlers) {
+                        if (handler.test(response.status())) {
+                            return handler.apply(response, content).flatMap(Mono::error);
+                        }
+                    }
+
                     String responseContentType = response.responseHeaders().get(HttpHeaderNames.CONTENT_TYPE);
                     Optional<ReaderStrategy<?>> readerStrategy = exchangeStrategies.readers().stream()
                             .filter(s -> s.canRead(responseType, responseContentType))
@@ -114,6 +128,12 @@ public class DiscordWebClient {
                                 .orElseGet(() -> Mono.error(noReaderException(responseType, responseContentType)));
                     }
                 }));
+    }
+
+    public DiscordWebClient onStatus(Predicate<HttpResponseStatus> statusPredicate,
+            BiFunction<HttpClientResponse, ByteBufMono, Mono<? extends Throwable>> exceptionFunction) {
+        statusHandlers.add(new StatusHandler(statusPredicate, exceptionFunction));
+        return this;
     }
 
     @SuppressWarnings("unchecked")
@@ -136,5 +156,25 @@ public class DiscordWebClient {
 
     private static RuntimeException noReaderException(Object body, String contentType) {
         return new RuntimeException("No strategies to read this response: " + body + " - " + contentType);
+    }
+
+    private static class StatusHandler {
+
+        private final Predicate<HttpResponseStatus> predicate;
+        private final BiFunction<HttpClientResponse, ByteBufMono, Mono<? extends Throwable>> exceptionFunction;
+
+        private StatusHandler(Predicate<HttpResponseStatus> predicate, BiFunction<HttpClientResponse, ByteBufMono,
+                Mono<? extends Throwable>> exceptionFunction) {
+            this.predicate = predicate;
+            this.exceptionFunction = exceptionFunction;
+        }
+
+        public boolean test(HttpResponseStatus status) {
+            return predicate.test(status);
+        }
+
+        public Mono<? extends Throwable> apply(HttpClientResponse response, ByteBufMono content) {
+            return exceptionFunction.apply(response, content);
+        }
     }
 }

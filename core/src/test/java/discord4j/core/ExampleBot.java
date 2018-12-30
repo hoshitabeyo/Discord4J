@@ -70,6 +70,7 @@ public class ExampleBot {
         eventHandlers.add(new AddRole());
         eventHandlers.add(new Echo());
         eventHandlers.add(new BlockingEcho());
+        eventHandlers.add(new GetUser());
 
         // Build a safe event-processing pipeline
         client.getEventDispatcher().on(MessageCreateEvent.class)
@@ -130,6 +131,31 @@ public class ExampleBot {
                         channel.createMessage(source).block();
                     });
             return Mono.empty();
+        }
+    }
+
+    public static class GetUser extends EventHandler {
+
+        @Override
+        public Mono<Void> onMessageCreate(MessageCreateEvent event) {
+            Message message = event.getMessage();
+            if (message.getContent()
+                    .filter(content -> content.startsWith("!user "))
+                    .isPresent()) {
+                return Mono.justOrEmpty(message.getContent())
+                        .map(content -> content.substring("!user ".length()))
+                        .flatMap(id -> message.getClient().getUserById(Snowflake.of(id)))
+                        .flatMap(user -> message.getChannel()
+                                .flatMap(channel -> channel.createMessage(user.getUsername())))
+                        .switchIfEmpty(Mono.just("Not found")
+                                .flatMap(reason -> message.getChannel()
+                                        .flatMap(channel -> channel.createMessage(reason)))
+                        )
+                        .then();
+            } else {
+                return Mono.empty();
+            }
+
         }
     }
 

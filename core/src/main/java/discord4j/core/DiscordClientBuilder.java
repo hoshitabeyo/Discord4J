@@ -50,6 +50,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.FluxProcessor;
 import reactor.core.publisher.Hooks;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.client.HttpClient;
@@ -324,6 +325,7 @@ public final class DiscordClientBuilder {
         final HttpClient httpClient = HttpClient.create().baseUrl(Routes.BASE_URL).compress(true);
         final DiscordWebClient webClient = new DiscordWebClient(httpClient, defaultHeaders,
                 ExchangeStrategies.withJacksonDefaults(mapper));
+        webClient.onStatus(status -> status.code() == 404, (response, content) -> Mono.empty());
         final RestClient restClient = new RestClient(new Router(webClient, initRouterScheduler()));
 
         // Prepare identify parameters
