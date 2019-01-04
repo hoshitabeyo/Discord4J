@@ -28,6 +28,7 @@ import discord4j.core.event.domain.role.RoleDeleteEvent;
 import discord4j.core.event.domain.role.RoleUpdateEvent;
 import discord4j.core.object.data.stored.*;
 import discord4j.core.object.entity.*;
+import discord4j.core.object.presence.Presence;
 import discord4j.core.util.ArrayUtil;
 import discord4j.core.util.EntityUtil;
 import discord4j.gateway.json.GatewayPayload;
@@ -288,6 +289,11 @@ class GuildDispatchHandlers {
 
         Mono<Void> saveUsers = serviceMediator.getStateHolder().getUserStore().save(userPairs);
 
+        Mono<Void> saveOfflinePresences = serviceMediator.getStateHolder().getPresenceStore()
+                .save(Flux.fromArray(context.getDispatch().getMembers())
+                              .map(r -> r.getUser().getId())
+                              .map(userId -> Tuples.of(LongLongTuple2.of(guildId, userId), PresenceBean.DEFAULT_OFFLINE)));
+
         Set<Member> members = Arrays.stream(context.getDispatch().getMembers())
                 .map(response -> Tuples.of(new MemberBean(response), new UserBean(response.getUser())))
                 .map(tuple -> new Member(serviceMediator, tuple.getT1(), tuple.getT2(), guildId))
@@ -296,6 +302,7 @@ class GuildDispatchHandlers {
         return addMemberIds
                 .and(saveMembers)
                 .and(saveUsers)
+                .and(saveOfflinePresences)
                 .thenReturn(new MemberChunkEvent(serviceMediator.getClient(), guildId, members));
     }
 
