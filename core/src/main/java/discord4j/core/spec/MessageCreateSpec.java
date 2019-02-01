@@ -68,6 +68,10 @@ public class MessageCreateSpec implements Spec<MultipartRequest> {
         return this;
     }
 
+    public MessageCreateSpec addFileSpoiler(String fileName, InputStream file) {
+        return addFile("SPOILER_" + fileName, file);
+    }
+
     @Override
     public MultipartRequest asRequest() {
         MessageCreateRequest json = new MessageCreateRequest(content, nonce, tts, embed);
