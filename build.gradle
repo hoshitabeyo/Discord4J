@@ -18,7 +18,7 @@ ext {
     project_jdk = '1.8'
 
     // Dependencies
-    reactor_bom_version = 'Californium-SR4'
+    reactor_bom_version = 'Californium-BUILD-SNAPSHOT'
     jackson_version = '2.9.8'
     jsr305_version = '3.0.2'
     junit_version = '4.12'
@@ -49,6 +49,7 @@ allprojects {
     repositories {
         jcenter()
         maven { url 'https://jitpack.io' }
+        maven { url 'https://repo.spring.io/snapshot' }
     }
 
     tasks.withType(Javadoc) {
