@@ -33,6 +33,7 @@ import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.netty.ConnectionObserver;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
@@ -247,6 +248,7 @@ public class GatewayClient {
     private Retry<RetryContext> retryFactory() {
         return Retry.<RetryContext>any()
                 .withApplicationContext(retryOptions.getRetryContext())
+                .withBackoffScheduler(Schedulers.elastic())
                 .backoff(retryOptions.getBackoff())
                 .jitter(retryOptions.getJitter())
                 .retryMax(retryOptions.getMaxRetries())
